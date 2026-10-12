@@ -190,9 +190,12 @@ footer a{color:var(--accent)}
 <header class="top">
   <div class="brand">
     <h1>D5P 전력 분석기<span class="ver" id="appVer"></span></h1>
-    <p>ATORCH D5P 블루투스 실시간 측정과 기록</p>
+    <p>ATORCH D5P USB · 블루투스 실시간 측정과 기록</p>
   </div>
   <div class="conn">
+    <button class="btn primary" id="btnUsb" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v14"/><path d="m8 6 4-4 4 4"/><circle cx="12" cy="19" r="3"/><path d="M7 10v2l5 3 5-3v-2"/></svg>
+      USB 연결</button>
     <button class="btn primary" id="btnBle" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
       블루투스 연결</button>
@@ -210,14 +213,14 @@ footer a{color:var(--accent)}
   <div class="ro"><div class="lab"><span class="sw" style="background:var(--c-p)"></span>전력</div><div class="val" id="rP" style="color:var(--c-p)">—</div><div class="mm" data-k="p"></div></div>
   <div class="ro"><div class="lab"><span class="sw" style="background:var(--c-r)"></span>부하 저항</div><div class="val" id="rR">—</div><div class="mm" data-k="r"></div></div>
   <div class="ro"><div class="lab"><span class="sw" style="background:var(--c-t)"></span>온도</div><div class="val" id="rT">—</div><div class="mm" data-k="tc"></div></div>
-  <div class="ro dev" title="D5P가 보내는 자체 적산값입니다. 기기에서 초기화하면 함께 바뀝니다.">
+  <div class="ro dev" title="D5P가 블루투스로 보내는 자체 적산값입니다. USB로는 받지 않습니다. 기기에서 초기화하면 함께 바뀝니다.">
     <div class="lab"><span class="sw" style="background:var(--c-e)"></span>D5P 적산</div>
     <div class="devv">
       <span><i>용량</i><b id="dAh">—</b></span>
       <span><i>에너지</i><b id="dWh">—</b></span>
       <span><i>시간</i><b id="dTime">—</b></span>
     </div>
-    <div class="sub">기기 화면의 누적값 (기기에서 초기화)</div>
+    <div class="sub">기기 화면의 누적값 · 블루투스 연결에서만 받음</div>
   </div>
 </section>
 
@@ -376,16 +379,16 @@ footer a{color:var(--accent)}
 </main>
 
 <footer>
-  블루투스는 PC용 크롬·엣지와 안드로이드 크롬(Web Bluetooth)에서 동작합니다. 블루투스는 한 번에 한 기기만 연결되므로, 연결하기 전에 휴대폰 E-test 앱의 연결을 끊으세요.
-  D5P는 블루투스로 1초마다 측정값을 보내며, 전압은 0.1 V·전류는 1 mA 단위라 기기 화면보다 자릿수가 적습니다.
-  통신 형식은 공개된 분석 결과(<a href="https://github.com/NiceLabs/atorch-console" target="_blank" rel="noopener">NiceLabs/atorch-console</a>, <a href="https://github.com/syssi/esphome-atorch-dl24" target="_blank" rel="noopener">syssi/esphome-atorch-dl24</a>)를 따릅니다. 이 앱은 측정값을 받기만 하고 기기에 명령을 보내지 않습니다.
+  USB는 PC용 크롬·엣지(WebHID), 블루투스는 크롬·엣지와 안드로이드 크롬(Web Bluetooth)에서 동작합니다. USB로 연결할 때는 제조사 PC 프로그램을 닫고, 블루투스로 연결할 때는 휴대폰 E-test 앱의 연결을 끊으세요.
+  USB는 0.2초마다 새 측정값을 받고 해상도도 높습니다. 블루투스는 1초마다 받고 전압 0.1 V·전류 1 mA 단위입니다. D5P 자체 적산값(용량·에너지·시간)은 블루투스로만 받습니다.
+  블루투스 통신 형식은 공개된 분석 결과(<a href="https://github.com/NiceLabs/atorch-console" target="_blank" rel="noopener">NiceLabs/atorch-console</a>, <a href="https://github.com/syssi/esphome-atorch-dl24" target="_blank" rel="noopener">syssi/esphome-atorch-dl24</a>)를, USB는 제조사 PC 프로그램과 같은 측정값 요청을 따릅니다. 이 앱은 측정값 요청만 보내고 기기 설정을 바꾸는 명령은 보내지 않습니다.
 </footer>
 </div>
 
 <script>
 'use strict';
 // 버전 (헤더와 디버그 로그에 표시)
-const APP = { version: '1.0', build: 1 };
+const APP = { version: '1.0', build: 2 };
 const APP_VER = `v${APP.version} · build ${APP.build}`;
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -415,7 +418,7 @@ const Dbg = {
     const n = navigator;
     this.log('PAGE', `열림 · ${APP_VER} · ${location.protocol}//${location.host}/…/${location.pathname.split('/').pop()}`);
     this.log('PAGE', 'UA: ' + n.userAgent);
-    this.log('PAGE', `지원: WebBluetooth=${!!n.bluetooth} 폴더저장=${'showDirectoryPicker' in window} secure=${window.isSecureContext}`);
+    this.log('PAGE', `지원: WebHID=${'hid' in n} WebBluetooth=${!!n.bluetooth} 폴더저장=${'showDirectoryPicker' in window} secure=${window.isSecureContext}`);
     this.log('PAGE', 'CFG ' + JSON.stringify(CFG));
     if (n.bluetooth && n.bluetooth.getAvailability) n.bluetooth.getAvailability().then((a) => this.log('BLE', '블루투스 어댑터 사용 가능: ' + a)).catch(() => {});
     if (n.bluetooth && n.bluetooth.addEventListener) n.bluetooth.addEventListener('availabilitychanged', (e) => this.log('BLE', '블루투스 어댑터 상태 변경: ' + e.value));
@@ -699,9 +702,123 @@ function beginSession(src, label) {
   $('#accSince').textContent = '기록 시작 후';
   S.source = src;
   if (label) addEvent(sessionNow(), 'info', label, '');
-  if (src === 'ble') Save.start(S.startDate); // 연결마다 새 파일
+  if (src === 'usb' || src === 'ble') Save.start(S.startDate); // 연결마다 새 파일
   dirty = true;
 }
+
+/* ───────────── USB (WebHID) ───────────── */
+// D5P의 USB는 HID(0483:5750, 64바이트 보고서, 보고서 ID 없음)이고, 요청을 보내야만 답한다.
+//  - 요청: 55 05 22 05 0B 00 8C DD, 나머지는 0xAA로 채운 64바이트 (제조사 PC 프로그램의 측정값 요청과 같음)
+//  - 응답: AA 40 62 05 … 64바이트. 바이트 8부터 4바이트씩 리틀 엔디안이고 모두 ÷1,000,000
+//      8 전압 V   12 전류 A   16 전력 W   20 D+   24 D−   28 CC1   32 CC2 (DC 단자인 D5P는 0)   36 내부 온도 °C
+// 기기는 약 0.2초마다 새로 잰다. 50 ms마다 요청하고, 값이 바뀌었을 때(바뀌지 않으면 1초에 한 번) 한 샘플로 기록한다.
+// 같은 USB ID를 쓰는 다른 ATORCH 기기(전자부하 등)는 형식이 달라서 제품 이름으로 D5P인지 확인한다.
+const USB_ID = { vendorId: 0x0483, productId: 0x5750 };
+const USB_REQ = (() => { const b = new Uint8Array(64).fill(0xAA); b.set([0x55, 0x05, 0x22, 0x05, 0x0B, 0x00, 0x8C, 0xDD]); return b; })();
+const USB_POLL_MS = 50;   // 요청 간격
+const USB_HOLD = 1;       // 값이 그대로여도 이 간격(초)마다는 기록한다
+const USB_QUIET = 3;      // 이만큼 응답이 없으면 이벤트로 남긴다 (초)
+
+// 백그라운드 탭에서는 페이지 타이머가 1초(오래 숨기면 1분)로 늦춰진다. 요청 타이머는 Worker에서 돌려 간격을 지킨다.
+const Ticker = {
+  w: null, iv: null,
+  start(ms, fn) {
+    this.stop();
+    try {
+      const url = URL.createObjectURL(new Blob(['let t=null;onmessage=(e)=>{clearInterval(t);if(e.data>0)t=setInterval(()=>postMessage(0),e.data);};'], { type: 'text/javascript' }));
+      this.w = new Worker(url); URL.revokeObjectURL(url);
+      this.w.onmessage = fn;
+      this.w.onerror = (e) => { Dbg.log('USB', 'Worker 타이머 오류 → 페이지 타이머로 바꿈: ' + (e.message || '')); this.stop(); this.iv = setInterval(fn, ms); };
+      this.w.postMessage(ms);
+    } catch (e) {
+      Dbg.fail('USB', 'Worker 타이머 만들기', e);
+      this.iv = setInterval(fn, ms);
+    }
+  },
+  stop() { if (this.w) { this.w.terminate(); this.w = null; } clearInterval(this.iv); this.iv = null; },
+};
+
+const usbCounters = () => ({ req: 0, rx: 0, smp: 0, bad: 0, err: 0 });
+const USB = {
+  dev: null, busy: false, lastRx: 0, last: null, lastT: -Infinity, quiet: false, st: null, stT: 0, nLog: 0, firstLogged: false,
+  async connect() {
+    if (!('hid' in navigator)) return notice('이 브라우저는 USB(WebHID)를 지원하지 않습니다. PC용 크롬이나 엣지를 사용하세요.', 'warn');
+    let devs;
+    try { devs = await navigator.hid.requestDevice({ filters: [USB_ID] }); }
+    catch (e) { Dbg.fail('USB', '장치 선택', e); return notice('USB 장치 선택 창을 열 수 없습니다. 이 페이지를 파일로 열었는지, 또는 https 주소인지 확인하세요. (' + e.message + ')', 'bad'); }
+    if (!devs || !devs.length) return Dbg.log('USB', '장치 선택 취소');
+    const dev = devs[0];
+    Dbg.log('USB', `장치 선택됨: ${dev.productName || '(이름 없음)'} · 컬렉션 ${dev.collections.map((c) => 'usage ' + c.usagePage.toString(16) + ':' + c.usage.toString(16)).join(', ')}`);
+    if (!/D5P/i.test(dev.productName || '')) notice(`선택한 장치(${dev.productName || '이름 없음'})는 D5P가 아닐 수 있습니다. 같은 USB ID를 쓰는 다른 ATORCH 기기는 통신 형식이 달라 값이 나오지 않습니다.`, 'warn');
+    await stopSources(); // 같은 장치를 다시 고른 경우도 있어 열기 전에 이전 연결을 닫는다
+    setPill('busy', 'USB 연결 중…');
+    try { if (!dev.opened) await dev.open(); }
+    catch (e) { Dbg.fail('USB', '장치 열기', e); setPill(); return notice('D5P를 열 수 없습니다. 제조사 PC 프로그램이 켜져 있으면 닫고 다시 시도하세요. (' + e.message + ')', 'bad'); }
+    Dbg.log('USB', '장치 열림');
+    beginSession('usb', '장치 연결: USB · ' + (dev.productName || ''));
+    this.dev = dev; this.busy = false; this.last = null; this.lastT = -Infinity; this.quiet = false; this.nLog = 0; this.firstLogged = false;
+    this.st = usbCounters(); this.stT = now(); this.lastRx = now();
+    dev.addEventListener('inputreport', this.onReport);
+    Ticker.start(USB_POLL_MS, () => this.poll());
+    setPill();
+  },
+  poll() {
+    const d = this.dev;
+    if (!d) return;
+    const idle = now() - this.lastRx;
+    if (idle > USB_QUIET && !this.quiet) {
+      this.quiet = true;
+      Dbg.log('USB', `${idle.toFixed(1)}초 동안 응답 없음 (요청은 계속 보냄)`);
+      addEvent(sessionNow(), 'info', 'USB 응답 없음', `${Math.round(idle)}초 동안 수신 없음`);
+    }
+    if (now() - this.stT >= 10) this.statLine();
+    if (this.busy) return; // 앞 요청이 아직 나가는 중
+    this.busy = true; this.st.req++;
+    d.sendReport(0, USB_REQ)
+      .catch((e) => { this.st.err++; if (this.st.err <= 3) Dbg.fail('USB', '요청 전송', e); })
+      .finally(() => { this.busy = false; });
+  },
+  statLine() {
+    if (!this.st) return;
+    const s = this.st, dt = Math.max(now() - this.stT, 0.001);
+    Dbg.log('USB', `수신 ${dt.toFixed(0)}초: 요청 ${s.req} · 응답 ${s.rx} · 새 값 ${s.smp} (${(s.smp / dt).toFixed(1)}/s) · 다른 형식 ${s.bad} · 전송 오류 ${s.err}`);
+    this.st = usbCounters(); this.stT = now();
+  },
+  onReport: (e) => {
+    const U = USB;
+    if (e.device !== U.dev) return;
+    const d = e.data, b = new Uint8Array(d.buffer, d.byteOffset, d.byteLength);
+    U.lastRx = now(); U.st.rx++;
+    if (U.nLog < 3) { U.nLog++; Dbg.log('RX', 'USB ' + hex(b)); }
+    if (U.quiet) { U.quiet = false; Dbg.log('USB', '응답 다시 받음'); addEvent(sessionNow(), 'info', 'USB 응답 다시 받음', ''); }
+    if (b.length < 40 || b[0] !== 0xAA || b[1] !== 0x40 || b[2] !== 0x62 || b[3] !== 0x05) {
+      U.st.bad++;
+      if (U.st.bad <= 5) Dbg.log('USB', '다른 형식 응답: ' + hex(b));
+      return;
+    }
+    const raw = (o) => d.getUint32(o, true), val = (o) => raw(o) / 1e6;
+    const key = raw(8) + ',' + raw(12) + ',' + raw(36), t = sessionNow();
+    if (key === U.last && t - U.lastT < USB_HOLD) return; // 기기가 아직 새로 재지 않았다
+    U.last = key; U.lastT = t; U.st.smp++;
+    if (!U.firstLogged) {
+      U.firstLogged = true;
+      Dbg.log('USB', `첫 응답 해석: 전압 ${val(8)} V · 전류 ${val(12)} A · 전력 ${val(16)} W · D+ ${val(20)} · D− ${val(24)} · CC1 ${val(28)} · CC2 ${val(32)} · 온도 ${val(36)} · 4~7 ${hex(b.subarray(4, 8))} · 40~63 ${hex(b.subarray(40, 64))}`);
+    }
+    ingest(t, val(8), val(12), val(36), NaN, NaN, NaN);
+  },
+  async disconnect() {
+    Ticker.stop();
+    if (!this.dev) return;
+    const d = this.dev; this.dev = null;
+    this.statLine();
+    d.removeEventListener('inputreport', this.onReport);
+    try { await d.close(); } catch (e) { /* 이미 분리됨 */ }
+    Dbg.log('USB', '연결 정리 (해제 또는 다른 연결로 전환)');
+  },
+};
+if ('hid' in navigator) navigator.hid.addEventListener('disconnect', (e) => {
+  if (USB.dev && e.device === USB.dev) { Dbg.log('USB', '장치 분리됨 (navigator.hid disconnect)'); USB.disconnect(); addEvent(sessionNow(), 'info', 'USB 연결 끊김', ''); Save.finish(); setPill(); }
+});
 
 /* ───────────── 블루투스 (Web Bluetooth) ───────────── */
 // ATORCH 계열 공개 형식 (atorch-console, esphome-atorch-dl24 분석 결과)을 따른다.
@@ -742,7 +859,7 @@ const BLE = {
     try { dev = await navigator.bluetooth.requestDevice(opt); }
     catch (e) { Dbg.fail('BLE', '기기 선택', e); if (e.name !== 'NotFoundError') notice('블루투스 기기 선택 창을 열 수 없습니다. (' + e.message + ')', 'bad'); return; }
     Dbg.log('BLE', `기기 선택됨: name=${dev.name || '(없음)'} id=${dev.id} gatt.connected=${dev.gatt.connected}`);
-    Demo.stop();
+    Demo.stop(); await USB.disconnect();
     await this.disconnect();              // 이전 연결 정리 (세대 번호도 올라감)
     const gen = ++this.gen;
     beginSession('ble', '장치 연결: 블루투스 · ' + (dev.name || '이름 없음'));
@@ -1012,12 +1129,12 @@ const Demo = {
   stop() { clearInterval(this.timer); this.timer = null; },
 };
 
-async function stopSources() { Demo.stop(); await BLE.disconnect(); Save.finish(); }
+async function stopSources() { Demo.stop(); await USB.disconnect(); await BLE.disconnect(); Save.finish(); }
 
 /* ───────────── 상태 표시 ───────────── */
 function setPill(state, text) {
   const pill = $('#pill');
-  const live = BLE.connected ? '블루투스' : null;
+  const live = (USB.dev && 'USB') || (BLE.connected && '블루투스') || null;
   if (!state && BLE.linking) { state = 'busy'; text = '블루투스 재연결 중…'; }
   if (!state) {
     const waiting = CFG.autoRec ? '자동 기록 대기' : '기록 일시정지';
@@ -1058,8 +1175,10 @@ function batFactor() {
   return (eff / 100) / nom; // Wh → Ah(배터리 기준)
 }
 
-const STAT_DEC = { v: 2, i: 3, tc: 1 }; // 없는 키는 값 크기에 따라 자릿수를 정한다
-const fmtStat = (k, x) => !Number.isFinite(x) ? '—' : x.toFixed(STAT_DEC[k] ?? (Math.abs(x) >= 100 ? 1 : Math.abs(x) >= 10 ? 2 : 3));
+// 자릿수: USB는 해상도가 높아 한 자리씩 더 보인다. 없는 키는 값 크기에 따라 정한다.
+const DEC = { usb: { v: 3, i: 4 }, ble: { v: 1, i: 3 }, other: { v: 2, i: 3 } };
+const decOf = () => DEC[S.source] || DEC.other;
+const fmtStat = (k, x) => !Number.isFinite(x) ? '—' : x.toFixed(k === 'v' ? Math.max(2, decOf().v) : k === 'i' ? decOf().i : k === 'tc' ? 1 : (Math.abs(x) >= 100 ? 1 : Math.abs(x) >= 10 ? 2 : 3));
 const STAT_WIN_LABEL = { 10: '최근 10초', 60: '최근 1분', 300: '최근 5분', 600: '최근 10분', 0: '기록 시작(또는 적산 초기화) 이후' };
 document.querySelectorAll('.ro .mm').forEach((el) => {
   el.innerHTML = '<span><i>최소</i><b>—</b></span><span><i>최대</i><b>—</b></span><span><i>평균</i><b>—</b></span>';
@@ -1075,9 +1194,9 @@ function updateStats() {
 }
 function updateReadouts() {
   updateStats();
-  const L = S.latest, ble = S.source === 'ble';
-  setVal('#rV', fmtNum(L.v, ble ? 1 : 2), 'V');
-  setVal('#rI', fmtNum(L.i, 3), 'A');
+  const L = S.latest, dec = decOf();
+  setVal('#rV', fmtNum(L.v, dec.v), 'V');
+  setVal('#rI', fmtNum(L.i, dec.i), 'A');
   const p = L.v * L.i;
   setVal('#rP', fmtNum(p, p >= 100 ? 1 : p >= 10 ? 2 : 3), 'W');
   const r = L.i > 0.005 ? L.v / L.i : NaN;
@@ -1103,7 +1222,7 @@ setInterval(updateReadouts, 200);
 setInterval(() => {
   const r = S.rxT.filter((x) => x > sessionNow() - 10), n = r.length;
   const rate = n >= 2 && sessionNow() - r[n - 1] <= GAP ? (n - 1) / (r[n - 1] - r[0]) : 0;
-  $('#pillRate').textContent = (BLE.connected || Demo.timer) ? `${rate.toFixed(1)}/s` : '';
+  $('#pillRate').textContent = (USB.dev || BLE.connected || Demo.timer) ? `${rate.toFixed(1)}/s` : '';
 }, 1000);
 
 /* ───────────── 이벤트 목록 ───────────── */
@@ -1147,8 +1266,8 @@ if (document.fonts) document.fonts.ready.then(() => { dirty = true; });
 // 그래프 보기: 한 그래프에 왼쪽·오른쪽 두 축을 둔다
 // 계열: [키, 색 변수, 이름, 소수 자릿수, 아래 채우기 진하기 (0이면 채우지 않음)]
 const VIEWS = {
-  vi: { L: { unit: 'V', minSpan: 0.5, def: [0, 13], series: [['v', 'c-v', '전압', 2, 0.12]] },
-        R: { unit: 'A', minSpan: 0.05, def: [0, 1], zero: true, series: [['i', 'c-i', '전류', 3, 0.28]] } },
+  vi: { L: { unit: 'V', minSpan: 0.5, def: [0, 13], series: [['v', 'c-v', '전압', 3, 0.12]] },
+        R: { unit: 'A', minSpan: 0.05, def: [0, 1], zero: true, series: [['i', 'c-i', '전류', 4, 0.28]] } },
   pe: { L: { unit: 'W', minSpan: 0.1, def: [0, 1], zero: true, series: [['p', 'c-p', '전력', 2, 0.28]] },
         R: { unit: 'Wh', minSpan: 0.01, def: [0, 1], zero: true, series: [['e', 'c-e', '적산 에너지', 3, 0]] } },
   pt: { L: { unit: 'W', minSpan: 0.1, def: [0, 1], zero: true, series: [['p', 'c-p', '전력', 2, 0.28]] },
@@ -1400,8 +1519,8 @@ function drawDual() {
 // 분할 방식: 전압, 전류, 전력을 세 칸에 따로 그린다
 // 계열: [키, 색 변수, 이름, 소수 자릿수]
 const PANELS = [
-  { unit: 'V', series: [['v', 'c-v', '전압', 2]], minSpan: 0.5, def: [0, 13] },
-  { unit: 'A', series: [['i', 'c-i', '전류', 3]], minSpan: 0.05, def: [0, 1] },
+  { unit: 'V', series: [['v', 'c-v', '전압', 3]], minSpan: 0.5, def: [0, 13] },
+  { unit: 'A', series: [['i', 'c-i', '전류', 4]], minSpan: 0.05, def: [0, 1] },
   { unit: 'W', series: [['p', 'c-p', '전력', 2]], minSpan: 0.1, def: [0, 1] },
 ];
 function drawSplit() {
@@ -1632,9 +1751,10 @@ $('#btnSelZoom').onclick = () => { if (!sel) return; const a = Math.min(sel.a, s
 $('#inNom').oninput = $('#inEff').oninput = () => { if (sel) showSel(); };
 
 /* ───────────── 버튼 ───────────── */
+$('#btnUsb').onclick = () => USB.connect();
 $('#btnBle').onclick = () => BLE.connect(false);
 $('#btnDemo').onclick = async () => { await stopSources(); Demo.start(); };
-$('#btnDisc').onclick = async () => { const was = (BLE.dev || BLE.want) ? '블루투스' : null; if (was) addEvent(sessionNow(), 'info', was + ' 연결 해제', ''); await stopSources(); setPill(); };
+$('#btnDisc').onclick = async () => { const was = USB.dev ? 'USB' : (BLE.dev || BLE.want) ? '블루투스' : null; if (was) addEvent(sessionNow(), 'info', was + ' 연결 해제', ''); await stopSources(); setPill(); };
 $('#btnRec').onclick = () => {
   if (CFG.autoRec) {
     CFG.autoRec = false; saveCfg(); syncSettings();
@@ -1698,7 +1818,7 @@ $('#btnClear').onclick = () => {
   const b = $('#btnClear');
   if (!clearArm) { b.textContent = '한 번 더 누르면 삭제'; clearArm = setTimeout(() => { clearArm = null; b.textContent = '전체 지우기'; }, 3000); return; }
   clearTimeout(clearArm); clearArm = null; b.textContent = '전체 지우기';
-  const live = BLE.want ? 'ble' : null;
+  const live = USB.dev ? 'usb' : BLE.want ? 'ble' : null;
   if (Demo.timer) Demo.stop();
   beginSession(live || 'none', live ? '기록을 지우고 새 파일 시작' : '');
   setPill();
@@ -1716,7 +1836,7 @@ function fmtDT(base, t) {
 }
 function rowCsv(j, base) {
   const st = S.store, v = st.v[j], i = st.i[j], t = st.t[j];
-  return `${t.toFixed(3)},${fmtDT(base, t)},${fmtC(v, 3)},${fmtC(i, 3)},${fmtC(v * i, 4)},${fmtC(st.tc[j], 1)},${fmtC(st.ah[j], 2)},${fmtC(st.wh[j], 2)},${fmtC(st.ds[j], 0)}`;
+  return `${t.toFixed(3)},${fmtDT(base, t)},${fmtC(v, 4)},${fmtC(i, 5)},${fmtC(v * i, 5)},${fmtC(st.tc[j], 2)},${fmtC(st.ah[j], 2)},${fmtC(st.wh[j], 2)},${fmtC(st.ds[j], 0)}`;
 }
 const q = (s) => /[",\n]/.test(s) ? '"' + String(s).replace(/"/g, '""') + '"' : String(s);
 function eventsCsv(events, base) {
@@ -2016,10 +2136,11 @@ async function loadData(text, name, events) {
   applyTheme();
   $('#appVer').textContent = APP_VER;
   Dbg.init();
-  const hasBle = !!navigator.bluetooth;
+  const hasHid = 'hid' in navigator, hasBle = !!navigator.bluetooth;
+  if (!hasHid) { $('#btnUsb').disabled = true; $('#btnUsb').title = 'USB 연결은 PC용 크롬·엣지에서만 됩니다'; }
   if (!hasBle) { $('#btnBle').disabled = true; $('#btnBle').title = '이 브라우저는 Web Bluetooth를 지원하지 않습니다'; }
   if (!window.isSecureContext) notice('이 주소는 보안 연결이 아니어서 장치 연결이 막힙니다. https 주소로 열거나 PC에서 파일로 직접 여세요.', 'warn');
-  else if (!hasBle) notice('이 브라우저는 블루투스 장치 연결을 지원하지 않습니다. 크롬이나 엣지로 여세요. 지금은 데모 데이터만 볼 수 있습니다.', 'warn');
+  else if (!hasHid && !hasBle) notice('이 브라우저는 USB·블루투스 장치 연결을 지원하지 않습니다. 크롬이나 엣지로 여세요. 지금은 데모 데이터만 볼 수 있습니다.', 'warn');
   if (hasBle) {
     const s = document.createElement('span'); s.style.cssText = 'font-size:12px;color:var(--muted)';
     s.textContent = '블루투스 목록에 D5P가 안 보이면 ';
@@ -2035,7 +2156,7 @@ async function loadData(text, name, events) {
 })();
 
 // 테스트용 노출
-window.__d5p = { Save, IDB, loadData, setPill, atorchSum, BLE, S, Demo, CFG, Alarm, Auto, Det, Dbg, Win, statReset, ingest };
+window.__d5p = { Save, IDB, loadData, setPill, atorchSum, USB, USB_REQ, Ticker, BLE, S, Demo, CFG, Alarm, Auto, Det, Dbg, Win, statReset, ingest };
 </script>
 </body>
 </html>
