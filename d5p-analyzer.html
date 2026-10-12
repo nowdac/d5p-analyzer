@@ -217,8 +217,8 @@ footer a{color:var(--accent)}
     <div class="lab"><span class="sw" style="background:var(--c-e)"></span>D5P 적산</div>
     <div class="devv">
       <span><i>용량</i><b id="dAh">—</b></span>
-      <span><i>에너지</i><b id="dWh">—</b></span>
-      <span><i>시간</i><b id="dTime">—</b></span>
+      <span title="10 Wh 단위로 옵니다"><i>에너지</i><b id="dWh">—</b></span>
+      <span title="블루투스로는 기기 측정 시간의 분·초만 옵니다 (시는 오지 않음)"><i>시간 (분:초)</i><b id="dTime">—</b></span>
     </div>
     <div class="sub">기기 화면의 누적값 · 블루투스 연결에서만 받음</div>
   </div>
@@ -388,7 +388,7 @@ footer a{color:var(--accent)}
 <script>
 'use strict';
 // 버전 (헤더와 디버그 로그에 표시)
-const APP = { version: '1.0', build: 2 };
+const APP = { version: '1.0', build: 3 };
 const APP_VER = `v${APP.version} · build ${APP.build}`;
 const $ = (s) => document.querySelector(s);
 const now = () => performance.now() / 1000;
@@ -505,7 +505,7 @@ const Det = {
     this.load = null; this.loadCand = null; this.loadCandT = 0;
     this.dev = null;
   },
-  feed(t, v, i, ah, wh, ds) {
+  feed(t, v, i, ah, wh) {
     // 전압 레벨 변화: 최근 4초 동안 안정된 평균이 이전 레벨에서 크게 달라지면 기록
     if (Number.isFinite(v)) {
       this.wt.push(t); this.wv.push(v);
@@ -539,13 +539,13 @@ const Det = {
       } else this.loadCand = null;
     }
 
-    // 기기 적산값이 줄었으면 기기에서 초기화한 것
-    if (Number.isFinite(ds)) {
+    // 기기 적산 용량·에너지가 줄었으면 기기에서 초기화한 것 (측정 시간은 1시간마다 0으로 돌아가므로 보지 않는다)
+    if (Number.isFinite(ah) && Number.isFinite(wh)) {
       const p = this.dev;
-      if (p && (ds < p.ds - 2 || ah < p.ah - 0.005 || wh < p.wh - 0.005)) {
-        addEvent(t, 'dev', 'D5P 적산 초기화', `용량 ${fmtNum(p.ah, 2)} → ${fmtNum(ah, 2)} Ah · 에너지 ${fmtNum(p.wh, 2)} → ${fmtNum(wh, 2)} Wh · 시간 ${fmtDur(p.ds)} → ${fmtDur(ds)}`);
+      if (p && (ah < p.ah - 0.005 || wh < p.wh - 0.5)) {
+        addEvent(t, 'dev', 'D5P 적산 초기화', `용량 ${fmtNum(p.ah, 2)} → ${fmtNum(ah, 2)} Ah · 에너지 ${fmtNum(p.wh, 0)} → ${fmtNum(wh, 0)} Wh`);
       }
-      this.dev = { ah, wh, ds };
+      this.dev = { ah, wh };
     }
   },
 };
@@ -677,7 +677,7 @@ function ingest(t, v, i, tc, ah, wh, ds) {
   Alarm.step(t, v, i);
   Auto.step(t, i);
   if (!S.recording) return;
-  Det.feed(t, v, i, ah, wh, ds);
+  Det.feed(t, v, i, ah, wh);
   statSample(S.stat, v, i, tc);
   // 앱 적산: 앞뒤 샘플의 평균(사다리꼴)으로 더한다
   const a = S.acc;
@@ -826,9 +826,9 @@ if ('hid' in navigator) navigator.hid.addEventListener('disconnect', (e) => {
 //  - 프레임: FF 55 [종류] [내용…] [체크섬]. 종류 01 = 보고(36바이트), 02 = 응답(8바이트), 11 = 명령(10바이트)
 //  - 체크섬 = (바이트 합 & 0xFF) ^ 0x44. 기존 ATORCH 기기는 종류 바이트부터 더하고, D5P는 그다음 바이트부터 더한다. 둘 다 받는다.
 //  - 보고 내용 (기기 종류 02 = DC 미터, 큰 엔디안):
-//      4  전압 3바이트 0.1 V      7  전류 3바이트 1 mA        10 용량 3바이트 0.01 Ah    13 에너지 4바이트 0.01 Wh
-//      17 단가 3바이트 0.01       24 온도 2바이트 °C          26 시 2바이트 · 28 분 · 29 초 (기기 측정 시간)
-//      30 화면 꺼짐 시간(초)
+//      4  전압 3바이트 0.1 V      7  전류 3바이트 1 mA        10 용량 3바이트 0.01 Ah    13 에너지 4바이트 10 Wh
+//      17 단가 3바이트 0.01       24 온도 2바이트 °C (26–27에도 같은 값)
+//      28 분 · 29 초 (기기 측정 시간의 분·초. 시는 오지 않아 1시간마다 0으로 돌아간다)   30 화면 꺼짐 시간(초)
 // 알림을 구독하면 기기가 1초마다 보고를 보낸다. 이 앱은 기기에 명령을 보내지 않는다.
 const BLE_FRAME = { 0x01: 36, 0x02: 8, 0x11: 10 };
 const BLE_FIRST_WAIT = 6;  // 알림 구독 뒤 첫 보고를 기다리는 시간 (초)
@@ -1063,12 +1063,12 @@ const BLE = {
     }
     const tRaw = u16(24);
     const r = {
-      v: u24(4) / 10, i: u24(7) / 1000, ah: u24(10) / 100, wh: u32(13) / 100,
-      tc: tRaw > 0x7FFF ? tRaw - 0x10000 : tRaw, ds: u16(26) * 3600 + f[28] * 60 + f[29],
+      v: u24(4) / 10, i: u24(7) / 1000, ah: u24(10) / 100, wh: u32(13) * 10,
+      tc: tRaw > 0x7FFF ? tRaw - 0x10000 : tRaw, ds: f[28] * 60 + f[29],
     };
     if (!this.st.firstLogged) {
       this.st.firstLogged = true;
-      Dbg.log('BLE', `첫 보고 해석: 전압 ${r.v} V · 전류 ${r.i.toFixed(3)} A · 용량 원본 ${u24(10)} · 에너지 원본 ${u32(13)} · 단가 원본 ${u24(17)} · 20~23 ${hex(f.subarray(20, 24))} · 온도 ${r.tc} · 시간 ${fmtDur(r.ds)} · 화면 ${f[30]} · 31~34 ${hex(f.subarray(31, 35))}`);
+      Dbg.log('BLE', `첫 보고 해석: 전압 ${r.v} V · 전류 ${r.i.toFixed(3)} A · 용량 원본 ${u24(10)} · 에너지 원본 ${u32(13)} · 단가 원본 ${u24(17)} · 20~23 ${hex(f.subarray(20, 24))} · 온도 ${r.tc} · 26~27 ${u16(26)} · 분:초 ${fmtMS(r.ds)} · 화면 ${f[30]} · 31~34 ${hex(f.subarray(31, 35))}`);
     }
     ingest(sessionNow(), r.v, r.i, r.tc, r.ah, r.wh, r.ds);
   },
@@ -1112,10 +1112,10 @@ const Demo = {
     const i = Math.max(0, this.i + (this.i > 0.01 ? this.rn() * 0.012 : 0));
     const v = vs > 0 ? vs - 0.11 * i + this.rn() * 0.03 : 0;
     this.temp += ((29 + 2.2 * i) - this.temp) * 0.02;
-    // 블루투스 값과 같은 단위로 맞춘다 (전압 0.1 V, 전류 1 mA, 온도 1 °C, 적산 0.01)
+    // 블루투스 값과 같은 단위로 맞춘다 (전압 0.1 V, 전류 1 mA, 온도 1 °C, 용량 0.01 Ah, 에너지 10 Wh, 시간은 분·초만)
     const vr = Math.round(v * 10) / 10, ir = Math.round(i * 1000) / 1000;
     this.ah += ir / 3600; this.wh += vr * ir / 3600; this.ds++;
-    return [vr, ir, Math.round(this.temp), Math.floor(this.ah * 100) / 100, Math.floor(this.wh * 100) / 100, this.ds];
+    return [vr, ir, Math.round(this.temp), Math.floor(this.ah * 100) / 100, Math.floor(this.wh / 10) * 10, this.ds % 3600];
   },
   run(t1) { while (this.t <= t1) { ingest(this.t, ...this.sample(this.t)); this.t += 1; } },
   start() {
@@ -1167,6 +1167,7 @@ function notice(msg, kind = 'info', actions) {
 
 const fmtNum = (x, d) => Number.isFinite(x) ? x.toFixed(d) : '—';
 function fmtDur(s) { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60; return `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`; }
+function fmtMS(s) { s = Math.max(0, Math.floor(s)) % 3600; return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
 function setVal(id, num, unit) { $(id).innerHTML = num === '—' ? '—' : `${num}<small>${unit}</small>`; }
 
 function batFactor() {
@@ -1203,8 +1204,8 @@ function updateReadouts() {
   setVal('#rR', Number.isFinite(r) ? (r >= 100 ? r.toFixed(0) : r.toFixed(2)) : '—', 'Ω');
   setVal('#rT', fmtNum(L.tc, Number.isInteger(L.tc) ? 0 : 1), '°C');
   setVal('#dAh', fmtNum(L.ah, 2), 'Ah');
-  setVal('#dWh', fmtNum(L.wh, 2), 'Wh');
-  $('#dTime').textContent = Number.isFinite(L.ds) ? fmtDur(L.ds) : '—';
+  setVal('#dWh', fmtNum(L.wh, 0), 'Wh');
+  $('#dTime').textContent = Number.isFinite(L.ds) ? fmtMS(L.ds) : '—';
   $('#rV').parentElement.classList.toggle('alarm', Alarm.on.v || Alarm.on.vl);
   $('#rI').parentElement.classList.toggle('alarm', Alarm.on.i);
   $('#rP').parentElement.classList.toggle('alarm', Alarm.on.p);
@@ -1827,7 +1828,7 @@ $('#btnClear').onclick = () => {
 /* ───────────── CSV 형식 ───────────── */
 const fmtC = (x, d) => (x === x ? x.toFixed(d) : '');
 const p2 = (x) => String(x).padStart(2, '0');
-const DATA_HEADER = 'time_s,datetime,voltage_V,current_A,power_W,temp_C,dev_Ah,dev_Wh,dev_time_s';
+const DATA_HEADER = 'time_s,datetime,voltage_V,current_A,power_W,temp_C,dev_Ah,dev_Wh,dev_mmss_s'; // dev_mmss_s: 기기 측정 시간의 분·초 (0~3599초)
 const EV_HEADER = 'time_s,datetime,kind,text,detail';
 function stamp(d) { return `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`; }
 function fmtDT(base, t) {
@@ -1836,7 +1837,7 @@ function fmtDT(base, t) {
 }
 function rowCsv(j, base) {
   const st = S.store, v = st.v[j], i = st.i[j], t = st.t[j];
-  return `${t.toFixed(3)},${fmtDT(base, t)},${fmtC(v, 4)},${fmtC(i, 5)},${fmtC(v * i, 5)},${fmtC(st.tc[j], 2)},${fmtC(st.ah[j], 2)},${fmtC(st.wh[j], 2)},${fmtC(st.ds[j], 0)}`;
+  return `${t.toFixed(3)},${fmtDT(base, t)},${fmtC(v, 4)},${fmtC(i, 5)},${fmtC(v * i, 5)},${fmtC(st.tc[j], 2)},${fmtC(st.ah[j], 2)},${fmtC(st.wh[j], 0)},${fmtC(st.ds[j], 0)}`;
 }
 const q = (s) => /[",\n]/.test(s) ? '"' + String(s).replace(/"/g, '""') + '"' : String(s);
 function eventsCsv(events, base) {
@@ -2112,7 +2113,7 @@ async function loadData(text, name, events) {
   const head = lines[0].toLowerCase().split(/[,;\t]/).map((s) => s.trim());
   const find = (...keys) => head.findIndex((h) => keys.some((k) => h.includes(k)));
   const it = head.indexOf('time_s') >= 0 ? head.indexOf('time_s') : head.findIndex((h) => h.includes('time') && !h.includes('date') && !h.includes('dev'));
-  const ix = { t: it, dt: head.indexOf('datetime'), v: find('voltage', 'vbus', 'volt'), i: find('current', 'ibus', 'curr'), tc: find('temp'), ah: find('dev_ah'), wh: find('dev_wh'), ds: find('dev_time') };
+  const ix = { t: it, dt: head.indexOf('datetime'), v: find('voltage', 'vbus', 'volt'), i: find('current', 'ibus', 'curr'), tc: find('temp'), ah: find('dev_ah'), wh: find('dev_wh'), ds: find('dev_mmss', 'dev_time') };
   if (ix.v < 0 || ix.i < 0) return notice('전압·전류 열을 찾지 못했습니다. 이 앱에서 저장한 CSV 형식(time_s, voltage_V, current_A …)을 사용하세요.', 'warn');
   await stopSources();
   beginSession('file');
